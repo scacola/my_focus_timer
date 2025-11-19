@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Grid - 시간 관리</title>
+    <style>
+        /* --- 1. 기본 스타일 및 레이아웃 --- */
+        :root {
+            --primary-color: #4f46e5; /* 메인 보라색 */
+            --danger-color: #ef4444;  /* 삭제 버튼 빨간색 */
+            --bg-color: #f3f4f6;      /* 배경색 */
+            --card-bg: #ffffff;       /* 카드 배경 */
+            --text-main: #1f2937;     /* 메인 텍스트 */
+            --text-sub: #6b7280;      /* 보조 텍스트 */
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--primary-color); }
+        p { color: var(--text-sub); }
+
+        /* --- 2. 입력 폼 스타일 --- */
+        .input-container {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        input {
+            padding: 0.8rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus { border-color: var(--primary-color); }
+
+        .input-task { flex: 2; min-width: 200px; }
+        .input-time { flex: 1; min-width: 100px; }
+
+        button.add-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        button.add-btn:hover { opacity: 0.9; }
+        button.add-btn:active { transform: scale(0.98); }
+
+        /* --- 3. 할 일 그리드 --- */
+        .task-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* --- 4. 개별 할 일 카드 (위젯) --- */
+        .task-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.5s ease; /* 부드러운 흑백 전환을 위한 트랜지션 */
+        }
+
+        /* 핵심 기능: 시간이 다 되면 흑백으로 변함 */
+        .task-card.expired {
+            filter: grayscale(100%);
+            opacity: 0.6;
+            box-shadow: none;
+            border: 1px solid #e5e7eb;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .task-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            word-break: break-all;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 4px;
+        }
+        .delete-btn:hover { color: var(--danger-color); }
+
+        .timer-display {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums; /* 숫자가 흔들리지 않게 */
+            color: var(--primary-color);
+            margin: 0.5rem 0;
+            text-align: center;
+        }
+        
+        .task-card.expired .timer-display { color: #333; }
+
+        /* 프로그레스 바 */
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            width: 100%;
+            transition: width 1s linear;
+        }
+
+        /* 컨트롤 버튼 */
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.8rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-start { background-color: #dbeafe; color: var(--primary-color); }
+        .btn-start:hover { background-color: #bfdbfe; }
+
+        .btn-pause { background-color: #fee2e2; color: var(--danger-color); display: none; }
+        .btn-pause:hover { background-color: #fecaca; }
+
+        /* 실행 중일 때 버튼 표시 로직 */
+        .task-card.running .btn-start { display: none; }
+        .task-card.running .btn-pause { display: block; }
+        
+        /* 만료된 카드 버튼 숨김 */
+        .task-card.expired .controls { visibility: hidden; }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Focus Grid</h1>
+        <p>여러 개의 타이머로 시간을 입체적으로 관리하세요.</p>
+    </header>
+
+    <!-- 입력 영역 -->
+    <div class="input-container">
+        <input type="text" id="taskInput" class="input-task" placeholder="할 일 입력 (예: 독서하기)" autocomplete="off">
+        <input type="number" id="timeInput" class="input-time" placeholder="분(Min)" min="1">
+        <button class="add-btn" onclick="addTask()">추가하기</button>
+    </div>
+
+    <!-- 할 일 목록이 표시될 곳 -->
+    <div class="task-grid" id="taskGrid">
+        <!-- JS로 카드가 추가됩니다 -->
+    </div>
+
+    <script>
+        // --- 1. 상태 관리 ---
+        let tasks = [];
+
+        // 로컬 스토리지에서 데이터 불러오기
+        const savedTasks = localStorage.getItem('focusGridTasks');
+        if (savedTasks) {
+            tasks = JSON.parse(savedTasks);
+            // 날짜가 지나서 로드될 때를 대비해 running 상태는 false로 초기화하는 것이 안전함 (선택사항)
+            tasks.forEach(t => t.isRunning = false); 
+        }
+
+        // --- 2. 핵심 로직 ---
+
+        function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const timeInput = document.getElementById('timeInput');
+            
+            const title = taskInput.value.trim();
+            const minutes = parseInt(timeInput.value);
+
+            if (!title || !minutes || minutes <= 0) {
+                alert("할 일과 유효한 시간(분)을 입력해주세요.");
+                return;
+            }
+
+            const totalSeconds = minutes * 60;
+            
+            const newTask = {
+                id: Date.now(),           // 고유 ID
+                title: title,             // 할 일 제목
+                totalTime: totalSeconds,  // 전체 시간 (초)
+                remainingTime: totalSeconds, // 남은 시간 (초)
+                isRunning: false,         // 타이머 동작 여부
+                isExpired: false          // 만료 여부
+            };
+
+            tasks.push(newTask);
+            saveAndRender();
+            
+            // 입력창 초기화
+            taskInput.value = '';
+            timeInput.value = '';
+            taskInput.focus();
+        }
+
+        function deleteTask(id) {
+            if(confirm('이 할 일을 삭제하시겠습니까?')) {
+                tasks = tasks.filter(task => task.id !== id);
+                saveAndRender();
+            }
+        }
+
+        function toggleTimer(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task && !task.isExpired) {
+                task.isRunning = !task.isRunning;
+                saveAndRender();
+            }
+        }
+
+        // 시간을 MM:SS 형식으로 변환
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        // --- 3. 렌더링 & 타이머 루프 ---
+
+        const taskGrid = document.getElementById('taskGrid');
+
+        function render() {
+            taskGrid.innerHTML = ''; // 기존 내용 초기화
+
+            tasks.forEach(task => {
+                // 카드 요소 생성
+                const card = document.createElement('div');
+                
+                // 클래스 설정 (실행중, 만료 등 상태 반영)
+                let classes = 'task-card';
+                if (task.isRunning) classes += ' running';
+                if (task.isExpired) classes += ' expired';
+                card.className = classes;
+
+                // 프로그레스 바 계산
+                const progressPercent = (task.remainingTime / task.totalTime) * 100;
+
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="task-title">${task.title}</div>
+                        <button class="delete-btn" onclick="deleteTask(${task.id})">✕</button>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                    </div>
+
+                    <div class="timer-display">
+                        ${task.isExpired ? "Done" : formatTime(task.remainingTime)}
+                    </div>
+
+                    <div class="controls">
+                        <button class="btn btn-start" onclick="toggleTimer(${task.id})">
+                            ${task.remainingTime < task.totalTime ? "이어서 하기" : "시작하기"}
+                        </button>
+                        <button class="btn btn-pause" onclick="toggleTimer(${task.id})">일시정지</button>
+                    </div>
+                `;
+                taskGrid.appendChild(card);
+            });
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('focusGridTasks', JSON.stringify(tasks));
+            render();
+        }
+
+        // --- 4. 글로벌 타이머 (1초마다 실행) ---
+        // 각 카드마다 setInterval을 쓰지 않고, 하나의 인터벌이 모든 데이터를 관리합니다 (성능 최적화)
+        setInterval(() => {
+            let stateChanged = false;
+
+            tasks.forEach(task => {
+                if (task.isRunning && task.remainingTime > 0) {
+                    task.remainingTime--;
+                    stateChanged = true; // 화면 갱신 필요
+
+                    // 시간이 다 되었을 때
+                    if (task.remainingTime <= 0) {
+                        task.remainingTime = 0;
+                        task.isRunning = false;
+                        task.isExpired = true;
+                        // 알림음이나 브라우저 알림을 추가할 수도 있습니다.
+                    }
+                }
+            });
+
+            if (stateChanged) {
+                saveAndRender();
+            }
+        }, 1000);
+
+        // 초기 렌더링
+        render();
+
+    </script>
+</body>
+</html>
